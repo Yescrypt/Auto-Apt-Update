@@ -1,12 +1,14 @@
 #!/bin/bash
 
 # === Foydalanuvchi nomini so'rash ===
-read -rp "Yangilash bildirishnomalari qaysi user uchun o‘rnatilsin? [kali]: " USER_NAME
-USER_NAME=${USER_NAME:-coder}
+DEFAULT_USER=$(logname 2>/dev/null || whoami)
+read -rp "Yangilash bildirishnomalari qaysi user uchun o‘rnatilsin? [$DEFAULT_USER]: " USER_NAME
+USER_NAME=${USER_NAME:-$DEFAULT_USER}
+
 
 # === Notification paketlarini o‘rnatish ===
 echo "[*] Zarur paketlar o‘rnatilmoqda..."
-sudo apt update
+sudo apt update -y
 sudo apt install -y libnotify-bin gir1.2-notify-0.7 dbus-x11 gzip
 
 # === apt-update-notify.sh faylini yaratish ===
@@ -20,6 +22,10 @@ LOG_FILE="/var/log/apt-cron.log"
 MAX_SIZE=\$((5 * 1024 * 1024))  # 5 MB
 USER_NAME="$USER_NAME"
 USER_ID=\$(id -u "\$USER_NAME")
+
+# --- Sessiya muhitini o‘rnatish ---
+export DISPLAY=:0
+export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/\$USER_ID/bus"
 
 # --- Log hajmi tekshirish va arxivlash ---
 if [ -f "\$LOG_FILE" ] && [ \$(stat -c%s "\$LOG_FILE") -ge \$MAX_SIZE ]; then
@@ -36,7 +42,7 @@ sudo find /var/log/ -maxdepth 1 -name "apt-cron-*.log.gz" -type f -mtime +7 -exe
 echo "========== \$(date '+%Y-%m-%d %H:%M:%S') ==========" | sudo tee -a "\$LOG_FILE" > /dev/null
 
 # --- Yangilash ---
-sudo apt update | sudo tee -a "\$LOG_FILE" > /dev/null
+sudo apt update -y | sudo tee -a "\$LOG_FILE" > /dev/null
 UPGRADE_LIST=\$(apt list --upgradable 2>/dev/null | grep -v "^Listing")
 UPGRADE_COUNT=\$(echo "\$UPGRADE_LIST" | grep -v '^$' | wc -l)
 
@@ -56,8 +62,7 @@ else
 fi
 
 # --- Bildirishnoma chiqarish ---
-sudo -u "\$USER_NAME" DISPLAY=:0 \
-DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/\$USER_ID/bus \
+sudo -u "\$USER_NAME" \
 gdbus call --session \
 --dest org.freedesktop.Notifications \
 --object-path /org/freedesktop/Notifications \
@@ -68,8 +73,7 @@ gdbus call --session \
 {} 10000 &
 
 # --- Bosilganda logni ochish ---
-sudo -u "\$USER_NAME" DISPLAY=:0 \
-DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/\$USER_ID/bus \
+sudo -u "\$USER_NAME" \
 dbus-monitor "interface='org.freedesktop.Notifications',member='ActionInvoked'" |
 while read -r line; do
     if echo "\$line" | grep -q "default"; then
