@@ -1,19 +1,18 @@
 #!/bin/bash
 
-# === Foydalanuvchi nomini so‘rash ===
-DEFAULT_USER=$(logname 2>/dev/null || whoami)
-read -rp "Yangilash bildirishnomalari qaysi user uchun o‘rnatilsin? [$DEFAULT_USER]: " USER_NAME
-USER_NAME=${USER_NAME:-$DEFAULT_USER}
+# === User avtomatik aniqlash ===
+USER_NAME=$(logname 2>/dev/null || whoami)
+USER_ID=$(id -u "$USER_NAME")
 
-# === Zarur paketlarni o‘rnatish ===
+# === Zarur paketlar ===
 echo "[*] Zarur paketlar o‘rnatilmoqda..."
 sudo apt update -y
-sudo apt install -y libnotify-bin gir1.2-notify-0.7 dbus-x11 gzip
+sudo apt install -y libnotify-bin gir1.2-notify-0.7 dbus-x11 gzip gawk
 
-# === Skript yo‘lini belgilash ===
+# === Skript yo‘li ===
 SCRIPT_PATH="/usr/local/bin/apt-update-notify.sh"
 
-# === apt-update-notify.sh faylini yaratish ===
+# === apt-update-notify.sh yaratish ===
 echo "[*] $SCRIPT_PATH yaratilmoqda..."
 sudo tee "$SCRIPT_PATH" > /dev/null <<EOF
 #!/bin/bash
@@ -21,7 +20,7 @@ sudo tee "$SCRIPT_PATH" > /dev/null <<EOF
 LOG_FILE="/var/log/apt-cron.log"
 MAX_SIZE=\$((5 * 1024 * 1024))  # 5 MB
 USER_NAME="$USER_NAME"
-USER_ID=\$(id -u "\$USER_NAME")
+USER_ID="$USER_ID"
 
 export DISPLAY=:0
 export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/\$USER_ID/bus"
@@ -55,11 +54,11 @@ else
     ICON="dialog-information"
 fi
 
-# --- DBus sessiyasi mavjud bo‘lsa bildirishnoma chiqarish ---
-USER_ENV="DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/\$USER_ID/bus"
-
+# --- Notification chiqarish va tugmani ishlatish ---
 if [ -S "/run/user/\$USER_ID/bus" ]; then
-    NOTIF_ID=\$(sudo -u "\$USER_NAME" env \$USER_ENV \
+    USER_ENV="DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/\$USER_ID/bus"
+
+    NOTIF_OUTPUT=\$(sudo -u "\$USER_NAME" env \$USER_ENV \
     gdbus call --session \
     --dest org.freedesktop.Notifications \
     --object-path /org/freedesktop/Notifications \
@@ -67,30 +66,34 @@ if [ -S "/run/user/\$USER_ID/bus" ]; then
     "APT Updater" 0 "\$ICON" "🔔 APT Yangilash" \
     "\$UPDATE_MESSAGE — \$(date '+%H:%M:%S')" \
     "['default', 'Logni ochish']" \
-    {} 10000 | awk '{print \$2}' | tr -d ',)')
+    {} 10000)
 
-    # Tugma bosilishini kuzatish
+    NOTIF_ID=\$(echo "\$NOTIF_OUTPUT" | awk '{print \$2}' | tr -d ',)')
+
+    # Tugma bosilishini kuzatish (faqat bitta marta ishlaydi)
     sudo -u "\$USER_NAME" env \$USER_ENV \
     gdbus monitor --session --dest org.freedesktop.Notifications |
     while read -r line; do
-        if echo "\$line" | grep -q "ActionInvoked"; then
+        if echo "\$line" | grep -q "ActionInvoked" && echo "\$line" | grep -q "\$NOTIF_ID"; then
             ACTION=\$(echo "\$line" | awk -F'"' '{print \$2}')
             if [ "\$ACTION" = "default" ]; then
                 x-terminal-emulator -e "sudo less +G \$LOG_FILE" &
+                pkill -P \$$
                 break
             fi
         fi
     done &
+
 else
     echo "⚠️ \$USER_NAME uchun DBus sessiya topilmadi — Notification chiqarilmadi." | sudo tee -a "\$LOG_FILE" > /dev/null
 fi
 EOF
 
-# Skriptga bajarish huquqini berish
+# === Bajarish huquqi ===
 sudo chmod +x "$SCRIPT_PATH"
 
 # === root cron ga qo‘shish ===
 echo "[*] Cron job qo‘shilmoqda (root)..."
-( sudo crontab -l 2>/dev/null; echo "0 9 * * * $SCRIPT_PATH" ) | sudo crontab -
+( sudo crontab -l 2>/dev/null; echo "0 * * * * /usr/local/bin/apt-update-notify.sh" ) | sudo crontab -
 
-echo "[✅] O‘rnatish yakunlandi. Har kuni soat 09:00 da yangilash tekshiriladi."
+echo "[✅] O‘rnatish yakunlandi. Har 1 soatda yangilash tekshiriladi."
