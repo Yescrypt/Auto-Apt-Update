@@ -22,7 +22,7 @@ MAX_SIZE=$((5 * 1024 * 1024))  # 5 MB
 export DISPLAY=:0
 export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$USER_ID/bus"
 
-# --- Log hajmini tekshirish ---
+# --- Log hajmini tekshirish -
 if [ -f "$LOG_FILE" ] && [ $(stat -c%s "$LOG_FILE") -ge $MAX_SIZE ]; then
     TIMESTAMP=$(date '+%Y%m%d-%H%M%S')
     sudo gzip -c "$LOG_FILE" > "/var/log/apt-cron-$TIMESTAMP.log.gz"
