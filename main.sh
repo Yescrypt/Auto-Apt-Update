@@ -58,6 +58,9 @@ if [ -n "$CAN_BE_UPG" ]; then
     UPDATE_MESSAGE="$UPDATE_MESSAGE — $CAN_BE_UPG"
 fi
 
+# 📄 LOG PATH QO‘SHILGAN JOY
+UPDATE_MESSAGE="$UPDATE_MESSAGE\n📄 Log path: sudo cat $LOG_FILE"
+
 # --- DBus sessiyasi mavjud bo‘lsa bildirishnoma chiqarish ---
 USER_ENV="DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$USER_ID/bus"
 
