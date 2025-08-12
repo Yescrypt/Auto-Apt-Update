@@ -90,8 +90,8 @@ sudo chmod +x "$SCRIPT_PATH"
 
 # === Crontab ga qo'shish ===
 echo "[*] Crontab sozlanmoqda..."
-( crontab -l 2>/dev/null; echo "*/30 * * * * $SCRIPT_PATH >> /var/log/apt-cron.log 2>&1" ) | crontab -
+( crontab -l 2>/dev/null; echo "*/60 * * * * $SCRIPT_PATH >> /var/log/apt-cron.log 2>&1" ) | crontab -
 
 echo "[✓] O‘rnatish tugadi!"
 echo "   Script: $SCRIPT_PATH"
-echo "   Crontab: */30 daqiqada ishga tushadi"
+echo "   Crontab: */60 daqiqada ishga tushadi"
