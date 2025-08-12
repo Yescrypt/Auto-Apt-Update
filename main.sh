@@ -72,30 +72,35 @@ gdbus call --session \
 "['default', 'Logni ochish']" \
 {} 10000 &
 
-# --- Bosilganda logni ochish ---
-sudo -u "\$USER_NAME" \
-dbus-monitor "interface='org.freedesktop.Notifications',member='ActionInvoked'" |
-while read -r line; do
-    if echo "\$line" | grep -q "default"; then
-        if command -v gedit >/dev/null 2>&1; then
-            gedit +999999 "\$LOG_FILE" &
-        elif command -v mousepad >/dev/null 2>&1; then
-            mousepad "\$LOG_FILE" &
-        else
-            x-terminal-emulator -e less +G "\$LOG_FILE" &
+# --- Bildirishnoma chiqarish ---
+USER_ID=$(id -u "$USER_NAME")
+USER_ENV="DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$USER_ID/bus"
+
+if [ -S "/run/user/$USER_ID/bus" ]; then
+    # Bildirishnoma chiqarish va ID sini olish
+    NOTIF_ID=$(sudo -u "$USER_NAME" env $USER_ENV \
+    gdbus call --session \
+    --dest org.freedesktop.Notifications \
+    --object-path /org/freedesktop/Notifications \
+    --method org.freedesktop.Notifications.Notify \
+    "APT Updater" 0 "$ICON" "🔔 APT Yangilash" \
+    "$UPDATE_MESSAGE — $(date '+%H:%M:%S')" \
+    "['default', 'Logni ochish']" \
+    {} 10000 | awk '{print $2}' | tr -d ',)')
+
+    # Tugma bosilishini kuzatish
+    sudo -u "$USER_NAME" env $USER_ENV \
+    gdbus monitor --session --dest org.freedesktop.Notifications |
+    while read -r line; do
+        if echo "$line" | grep -q "ActionInvoked"; then
+            ACTION=$(echo "$line" | awk -F'"' '{print $2}')
+            if [ "$ACTION" = "default" ]; then
+                x-terminal-emulator -e "sudo less +G $LOG_FILE" &
+                break
+            fi
         fi
-        break
-    fi
-done
-EOF
+    done &
 
-# Faylga ruxsat berish
-sudo chmod +x "$SCRIPT_PATH"
-
-# === Crontab ga qo'shish ===
-echo "[*] Crontab sozlanmoqda..."
-( crontab -l 2>/dev/null; echo "*/60 * * * * $SCRIPT_PATH >> /var/log/apt-cron.log 2>&1" ) | crontab -
-
-echo "[✓] O‘rnatish tugadi!"
-echo "   Script: $SCRIPT_PATH"
-echo "   Crontab: */60 daqiqada ishga tushadi"
+else
+    echo "⚠️ $USER_NAME uchun DBus sessiya topilmadi — Notification chiqarilmadi." | sudo tee -a "$LOG_FILE" > /dev/null
+fi
