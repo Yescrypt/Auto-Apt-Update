@@ -48,6 +48,7 @@ if [ "$UPGRADE_COUNT" -gt 0 ]; then
     echo "✅ $UPGRADE_COUNT ta yangilanish topildi, yangilanmoqda..." | sudo tee -a "$LOG_FILE"
     sudo apt upgrade -y 2>&1 | sudo tee -a "$LOG_FILE"
     sudo apt autoremove -y 2>&1 | sudo tee -a "$LOG_FILE"
+    sudo apt autoclean -y 2>&1 | sudo tee -a "$LOG_FILE"
     UPDATE_MESSAGE="✅ $UPGRADE_COUNT ta paket yangilandi"
     ICON="software-update-available"
 else
